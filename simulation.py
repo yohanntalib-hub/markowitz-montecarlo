@@ -234,6 +234,14 @@ def simulate_portfolio(mu, Sigma, weights, horizon_years=1.0,
     would be paths x steps x assets numbers, hundreds of MB). We step through
     time keeping only the current prices, and store the portfolio value at each
     step. That is all the risk metrics need, and it keeps the dashboard light.
+
+    The stored value history is float32 rather than float64, which halves the
+    memory for what is by far the largest array here (50,000 paths x 253 days
+    is 101 MB in float64, 51 MB in float32). The arithmetic is still done in
+    full precision; only the stored history is narrowed, and float32 carries
+    about seven significant figures, far more than a rupee value needs.
+    Anything that averages over the whole array converts back to float64
+    first, because summing millions of float32 numbers does lose accuracy.
     """
     assets = list(mu.index)
     w = np.asarray(weights[assets], dtype=float)
@@ -253,7 +261,7 @@ def simulate_portfolio(mu, Sigma, weights, horizon_years=1.0,
     # Starting at zero means every asset starts at a price relative of 1.0.
     log_growth = np.zeros((n_paths, len(assets)))
 
-    values = np.empty((n_paths, n_steps + 1))
+    values = np.empty((n_paths, n_steps + 1), dtype=np.float32)
     values[:, 0] = initial_value
 
     for step in range(1, n_steps + 1):
@@ -344,7 +352,7 @@ def value_at_risk(terminal_values, initial_value, confidence=0.95):
     Returns VaR as a POSITIVE fraction of the initial value, so 0.28 = a 28%
     loss. A negative number would mean even the bad cases made money.
     """
-    losses = 1.0 - np.asarray(terminal_values) / initial_value
+    losses = 1.0 - np.asarray(terminal_values, dtype=np.float64) / initial_value
     return float(np.percentile(losses, confidence * 100))
 
 
@@ -360,7 +368,7 @@ def conditional_value_at_risk(terminal_values, initial_value, confidence=0.95):
     (sub-additive: merging two portfolios can never increase it), which is why
     Basel's market-risk framework moved to Expected Shortfall.
     """
-    losses = 1.0 - np.asarray(terminal_values) / initial_value
+    losses = 1.0 - np.asarray(terminal_values, dtype=np.float64) / initial_value
     threshold = np.percentile(losses, confidence * 100)
     tail = losses[losses >= threshold]
     return float(tail.mean())
@@ -396,7 +404,7 @@ def simulation_summary(sim, rf=0.07, confidence_levels=(0.95, 0.99),
     """
     values = sim["values"]
     initial = sim["initial"]
-    terminal = values[:, -1]
+    terminal = np.asarray(values[:, -1], dtype=np.float64)
     growth = terminal / initial - 1.0
 
     row = {
@@ -953,7 +961,7 @@ def hedged_outcomes(sim, hedge, r, T):
     Returns the hedged terminal values, so the same risk metrics
     (VaR, CVaR, probability of loss) can be applied to both and compared.
     """
-    terminal = sim["values"][:, -1]
+    terminal = np.asarray(sim["values"][:, -1], dtype=np.float64)
     financing_cost = hedge["premium"] * np.exp(r * T)
     return terminal + hedge["payoff"] - financing_cost
 
@@ -967,7 +975,7 @@ def compare_hedges(sim, hedges, r, T, confidence=0.95):
     is not worth buying.
     """
     V0 = sim["initial"]
-    rows = {"Unhedged": sim["values"][:, -1]}
+    rows = {"Unhedged": np.asarray(sim["values"][:, -1], dtype=np.float64)}
     for hedge in hedges:
         rows[hedge["label"]] = hedged_outcomes(sim, hedge, r, T)
 

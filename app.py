@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+from matplotlib import font_manager
 import streamlit as st
 
 import portfolio as pf
@@ -46,6 +47,14 @@ SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100",
 INK, INK_2, MUTED = "#0b0b0b", "#52514e", "#898781"
 GRID, SURFACE = "#e1e0d9", "#fcfcfb"
 
+# Segoe UI is a Windows font and does not exist on the Linux servers this app
+# is deployed to. Asking for a missing font makes Matplotlib emit a warning for
+# every text object it draws, which floods the deployment log and buries any
+# real error. So pick a font that is actually installed.
+_AVAILABLE = {f.name for f in font_manager.fontManager.ttflist}
+_FONT = next((f for f in ("Segoe UI", "DejaVu Sans", "Liberation Sans", "sans-serif")
+              if f in _AVAILABLE), "sans-serif")
+
 plt.rcParams.update({
     "figure.facecolor": SURFACE, "axes.facecolor": SURFACE,
     "axes.edgecolor": "#c3c2b7", "axes.labelcolor": INK_2,
@@ -55,7 +64,7 @@ plt.rcParams.update({
     "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.8,
     "xtick.color": MUTED, "ytick.color": MUTED,
     "legend.frameon": False, "lines.linewidth": 2,
-    "font.family": ["Segoe UI", "DejaVu Sans"], "figure.dpi": 110,
+    "font.family": [_FONT], "figure.dpi": 110,
 })
 
 
@@ -74,7 +83,7 @@ def rupee_axis(ax, which="x"):
 # ---------------------------------------------------------------------------
 # Data and portfolios: computed once, then cached
 # ---------------------------------------------------------------------------
-@st.cache_data
+@st.cache_data(max_entries=1)
 def load_everything():
     """
     Load the cached prices, rebuild the three portfolios from the training
@@ -124,7 +133,7 @@ def load_everything():
     }
 
 
-@st.cache_data
+@st.cache_data(max_entries=4, show_spinner="Simulating ...")
 def run_simulation(portfolio_name, drift_name, horizon_years, n_paths, seed):
     """
     Simulate one portfolio. Cached on its arguments, so moving an unrelated
@@ -171,7 +180,7 @@ horizon_months = st.sidebar.slider("Horizon (months)", 1, 36, 12, step=1)
 horizon_years = horizon_months / 12
 
 n_paths = st.sidebar.select_slider(
-    "Simulated paths", options=[1_000, 5_000, 10_000, 20_000, 50_000],
+    "Simulated paths", options=[1_000, 5_000, 10_000, 20_000],
     value=10_000,
     help="More paths means a more precise answer, and a slower one. "
          "The error falls as 1/sqrt(N).")
@@ -362,9 +371,14 @@ with tab_options:
                     help=f"Historical volatility for {underlying} is "
                          f"{hist_vol:.1%}. NSE implied volatility is not "
                          f"freely available, so history is the default.")
+    # Asian options need the whole path (252 steps), so they cost far more
+    # memory per path than a European option, which needs only the final price.
+    path_choices = ([1_000, 10_000, 50_000, 100_000, 200_000]
+                    if option_family.startswith("European")
+                    else [1_000, 5_000, 10_000, 25_000])
     option_paths = c3.select_slider("Paths",
-                                    options=[1_000, 10_000, 50_000, 100_000,
-                                             200_000], value=50_000)
+                                    options=path_choices,
+                                    value=path_choices[-2])
 
     strike = strike_pct * spot
     kind = option_family.lower().replace(" ", "_")
@@ -478,11 +492,12 @@ with tab_greeks:
     g_kind = g_family.lower().replace(" ", "_")
     g_type = "call" if "call" in g_kind else "put"
 
-    @st.cache_data
+    @st.cache_data(max_entries=2, show_spinner="Estimating Greeks ...")
     def cached_greeks(spot, strike, vol, kind, seed):
+        european = kind.startswith("european")
         return sim.mc_greeks_bump(spot, strike, 1.0, RF, vol, kind,
-                                  n_paths=100_000,
-                                  n_steps=1 if kind.startswith("european") else 252,
+                                  n_paths=100_000 if european else 20_000,
+                                  n_steps=1 if european else 252,
                                   seed=int(seed))
 
     mc_g = cached_greeks(g_spot, g_strike, g_vol, g_kind, seed)
@@ -664,7 +679,7 @@ with tab_delta:
                                   f"{d_vol:.0%} (historical volatility). Move "
                                   f"this to see the seller win or lose.")
 
-    @st.cache_data
+    @st.cache_data(max_entries=3)
     def cached_hedge(spot, vol, realised, freq, seed):
         return sim.delta_hedge_simulation(spot, spot, 1.0, RF, vol,
                                           sigma_realised=realised,
@@ -708,7 +723,7 @@ with tab_delta:
         st.pyplot(fig, clear_figure=True)
 
     with right:
-        @st.cache_data
+        @st.cache_data(max_entries=2)
         def cached_freq_study(spot, vol, seed):
             return sim.hedging_error_study(spot, spot, 1.0, RF, vol,
                                            frequencies=(1, 2, 5, 21, 63),
