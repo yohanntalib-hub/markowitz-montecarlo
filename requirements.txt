@@ -1,10 +1,10 @@
+# Dependencies for the Streamlit dashboard (app.py).
+# Streamlit Community Cloud installs this file, so it is kept to what the
+# dashboard actually imports. For the notebooks, also install
+# requirements-notebooks.txt.
 numpy
 pandas
 scipy
 matplotlib
-seaborn
-yfinance
 scikit-learn
-ipykernel
-PyPortfolioOpt
 streamlit

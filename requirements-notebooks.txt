@@ -1,0 +1,10 @@
+# Extra packages needed only by the two notebooks, on top of requirements.txt:
+#   yfinance      - downloading prices (the repo ships cached CSVs, so this is
+#                   only needed if you delete data/ and refresh the data)
+#   PyPortfolioOpt- the independent check on our optimiser in notebook 1
+#   seaborn       - chart styling
+#   ipykernel     - running the notebooks in VS Code
+yfinance
+PyPortfolioOpt
+seaborn
+ipykernel

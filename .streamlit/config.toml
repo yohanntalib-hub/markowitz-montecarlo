@@ -1,0 +1,10 @@
+# Dashboard theme, matched to the charts so the page reads as one design.
+[theme]
+base = "light"
+primaryColor = "#2a78d6"
+backgroundColor = "#fcfcfb"
+secondaryBackgroundColor = "#f2f1ec"
+textColor = "#0b0b0b"
+
+[server]
+headless = true

@@ -189,7 +189,10 @@ Run it locally:
 ```powershell
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements-notebooks.txt
 ```
+
+`requirements.txt` holds what the dashboard needs, which is also what Streamlit Community Cloud installs. `requirements-notebooks.txt` adds the packages only the notebooks use (`yfinance`, `PyPortfolioOpt`, `seaborn`, `ipykernel`).
 
 Open either notebook in VS Code, select the `.venv` kernel and click **Run All**. Prices are loaded from `data/`; delete those CSV files to download fresh data. `monte_carlo.ipynb` takes about 90 seconds to run end to end.
 
