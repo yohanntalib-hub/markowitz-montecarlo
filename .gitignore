@@ -1,0 +1,13 @@
+# Python environment and caches (recreated from requirements.txt)
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Streamlit local secrets
+.streamlit/secrets.toml
+
+# OS / editor clutter
+.DS_Store
+Thumbs.db
+.vscode/
